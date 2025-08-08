@@ -23,6 +23,17 @@ app.get('/api/testar-conexao', async (req, res) => {
     }
 });
 
+// endpoint usuarios cadastrados
+app.get('/usuario', async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('usuario').select('*');
+        if (error) throw error;
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ mensagem: 'Erro ao buscar dados', erro: error.message });
+    }
+});
+
 // Endpoint para obter dados
 app.get('/dados', async (req, res) => {
     try {
