@@ -1,71 +1,86 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Conectando ao Supabase
+// Configurações
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const JWT_SECRET = process.env.JWT_SECRET || "segredo_super_forte";
 
 app.use(cors());
 app.use(express.json());
 
-// Endpoint para testar a conexão com o banco de dados
-app.get('/api/testar-conexao', async (req, res) => {
-    try {
-        const { data, error } = await supabase.from('dados').select('*').limit(1);
-        if (error) throw error;
-        res.json({ mensagem: 'Conexão bem-sucedida!', exemploDeDado: data });
-    } catch (error) {
-        res.status(500).json({ mensagem: 'Erro na conexão com o banco', erro: error.message });
-    }
+// Middleware para validar token
+function autenticarToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ mensagem: 'Token não fornecido' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ mensagem: 'Token inválido' });
+    req.user = user;
+    next();
+  });
+}
+
+// ✅ Cadastro
+app.post('/api/register', async (req, res) => {
+  const { email, senha } = req.body;
+  if (!email || !senha) return res.status(400).json({ mensagem: 'Email e senha são obrigatórios' });
+
+  try {
+    // Hash da senha
+    const hash = await bcrypt.hash(senha, 10);
+
+    const { data, error } = await supabase
+      .from('usuario')
+      .insert([{ email, senha: hash }]);
+
+    if (error) throw error;
+
+    res.status(201).json({ mensagem: 'Usuário registrado com sucesso!' });
+  } catch (error) {
+    res.status(500).json({ mensagem: 'Erro ao registrar', erro: error.message });
+  }
 });
 
-// endpoint usuarios cadastrados
-app.get('/usuario', async (req, res) => {
-    try {
-        const { data, error } = await supabase.from('usuario').select('*');
-        if (error) throw error;
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ mensagem: 'Erro ao buscar dados', erro: error.message });
-    }
+// ✅ Login
+app.post('/api/login', async (req, res) => {
+  const { email, senha } = req.body;
+  if (!email || !senha) return res.status(400).json({ mensagem: 'Email e senha são obrigatórios' });
+
+  try {
+    const { data: usuarios, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !usuarios) return res.status(401).json({ mensagem: 'Usuário não encontrado' });
+
+    // Verifica senha
+    const senhaCorreta = await bcrypt.compare(senha, usuarios.senha);
+    if (!senhaCorreta) return res.status(401).json({ mensagem: 'Senha incorreta' });
+
+    // Gera token
+    const token = jwt.sign({ id: usuarios.id, email: usuarios.email }, JWT_SECRET, { expiresIn: '1h' });
+
+    res.json({ mensagem: 'Login bem-sucedido!', token });
+  } catch (error) {
+    res.status(500).json({ mensagem: 'Erro no login', erro: error.message });
+  }
 });
 
-// Endpoint para obter dados
-app.get('/dados', async (req, res) => {
-    try {
-        const { data, error } = await supabase.from('dados').select('*');
-        if (error) throw error;
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ mensagem: 'Erro ao buscar dados', erro: error.message });
-    }
-});
-
-// Endpoint para adicionar dados
-app.post('/dados', async (req, res) => {
-    const { frequencia_cardiaca, localizacao, data_hora, id } = req.body;
-
-    if (!frequencia_cardiaca || !localizacao || !data_hora || !id) {
-        return res.status(400).json({ mensagem: 'Campos obrigatórios faltando: id, frequencia_cardiaca, localizacao, data_hora' });
-    }
-
-    try {
-        const { data, error } = await supabase
-            .from('dados')
-            .insert([{ frequencia_cardiaca, localizacao, data_hora, id }]);
-
-        if (error) throw error;
-
-        res.status(201).json({ mensagem: 'Dados inseridos com sucesso!', data });
-    } catch (error) {
-        res.status(500).json({ mensagem: 'Erro ao inserir dados', erro: error.message });
-    }
+// ✅ Rota protegida
+app.get('/api/protegida', autenticarToken, (req, res) => {
+  res.json({ mensagem: `Olá, ${req.user.email}, você acessou uma rota protegida!` });
 });
 
 app.listen(port, () => {
-    console.log(`API rodando na porta ${port}`);
+  console.log(`✅ API rodando na porta ${port}`);
 });
