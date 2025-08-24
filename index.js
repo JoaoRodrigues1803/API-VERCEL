@@ -1,19 +1,39 @@
-const express = require('express');
-const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { config } from 'dotenv';
+config(); // lê o .env
+
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 // Configurações
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const JWT_SECRET = process.env.JWT_SECRET || "segredo_super_forte";
 
 app.use(cors());
 app.use(express.json());
+
+// ✅ Endpoint principal da API
+app.get('/', (req, res) => {
+  res.json({
+    mensagem: 'API funcionando 🚀',
+    versao: '1.0.0',
+    endpoints: {
+      register: 'POST /api/register',
+      login: 'POST /api/login',
+      usuarios: 'GET /api/usuarios',
+      dados: 'GET /api/dados',
+      protegida: 'GET /api/protegida (requer token)'
+    }
+  });
+});
+
 
 // Middleware para validar token
 function autenticarToken(req, res, next) {
