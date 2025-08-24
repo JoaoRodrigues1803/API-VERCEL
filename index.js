@@ -15,7 +15,7 @@ app.use(express.json());
 // Endpoint para testar a conexão com o banco de dados
 app.get('/api/testar-conexao', async (req, res) => {
     try {
-        const { data, error } = await supabase.from('dados').select('*').limit(1);
+        const { data, error } = await supabase.from('dados', 'usuario').select('*').limit(1);
         if (error) throw error;
         res.json({ mensagem: 'Conexão bem-sucedida!', exemploDeDado: data });
     } catch (error) {
